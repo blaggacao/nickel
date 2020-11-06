@@ -84,68 +84,68 @@ pub fn merge(
             if b1 == b2 {
                 Ok(Closure::atomic_closure(Term::Bool(b1).into()))
             } else {
-                Err(EvalError::MergeIncompatibleArgs(
-                    RichTerm {
+                Err(EvalError::MergeIncompatibleArgs {
+                    left: RichTerm {
                         term: Box::new(Term::Bool(b1)),
                         pos: pos1,
                     },
-                    RichTerm {
+                    right: RichTerm {
                         term: Box::new(Term::Bool(b2)),
                         pos: pos2,
                     },
-                    pos_op,
-                ))
+                    pos: pos_op,
+                })
             }
         }
         (Term::Num(n1), Term::Num(n2)) => {
             if n1 == n2 {
                 Ok(Closure::atomic_closure(Term::Num(n1).into()))
             } else {
-                Err(EvalError::MergeIncompatibleArgs(
-                    RichTerm {
+                Err(EvalError::MergeIncompatibleArgs {
+                    left: RichTerm {
                         term: Box::new(Term::Num(n1)),
                         pos: pos1,
                     },
-                    RichTerm {
+                    right: RichTerm {
                         term: Box::new(Term::Num(n2)),
                         pos: pos2,
                     },
-                    pos_op,
-                ))
+                    pos: pos_op,
+                })
             }
         }
         (Term::Str(s1), Term::Str(s2)) => {
             if s1 == s2 {
                 Ok(Closure::atomic_closure(Term::Str(s1).into()))
             } else {
-                Err(EvalError::MergeIncompatibleArgs(
-                    RichTerm {
+                Err(EvalError::MergeIncompatibleArgs {
+                    left: RichTerm {
                         term: Box::new(Term::Str(s1)),
                         pos: pos1,
                     },
-                    RichTerm {
+                    right: RichTerm {
                         term: Box::new(Term::Str(s2)),
                         pos: pos2,
                     },
-                    pos_op,
-                ))
+                    pos: pos_op,
+                })
             }
         }
         (Term::Lbl(l1), Term::Lbl(l2)) => {
             if l1 == l2 {
                 Ok(Closure::atomic_closure(Term::Lbl(l1).into()))
             } else {
-                Err(EvalError::MergeIncompatibleArgs(
-                    RichTerm {
+                Err(EvalError::MergeIncompatibleArgs {
+                    left: RichTerm {
                         term: Box::new(Term::Lbl(l1)),
                         pos: pos1,
                     },
-                    RichTerm {
+                    right: RichTerm {
                         term: Box::new(Term::Lbl(l2)),
                         pos: pos2,
                     },
-                    pos_op,
-                ))
+                    pos: pos_op,
+                })
             }
         }
         // Right-biased: when merging two docstrings (s1,t2) and (s2,t2), the right one will end up
@@ -318,17 +318,17 @@ pub fn merge(
             })
         }
         //The following cases are either errors or not yet implemented
-        (t1_, t2_) => Err(EvalError::MergeIncompatibleArgs(
-            RichTerm {
+        (t1_, t2_) => Err(EvalError::MergeIncompatibleArgs {
+            left: RichTerm {
                 term: Box::new(t1_),
                 pos: pos1,
             },
-            RichTerm {
+            right: RichTerm {
                 term: Box::new(t2_),
                 pos: pos2,
             },
-            pos_op,
-        )),
+            pos: pos_op,
+        }),
     }
 }
 

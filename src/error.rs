@@ -28,47 +28,79 @@ pub enum Error {
 #[derive(Debug, PartialEq, Clone)]
 pub enum EvalError {
     /// A blame occurred: a contract have been broken somewhere.
-    BlameError(label::Label, Option<CallStack>),
+    BlameError {
+        label: label::Label,
+        call_stack: Option<CallStack>,
+    },
     /// Mismatch between the expected type and the actual type of an expression.
-    TypeError(
-        /* expected type */ String,
-        /* operation */ String,
-        /* position of the original unevaluated expression */ Option<RawSpan>,
-        /* evaluated expression */ RichTerm,
-    ),
+    TypeError {
+        /// Expected type.
+        expd: String,
+        /// Incriminated operation.
+        op: String,
+        /// Evaluated expression.
+        t: RichTerm,
+        /// Position of the original unevaluated expression.
+        pos: Option<RawSpan>,
+    },
     /// A term which is not a function has been applied to an argument.
-    NotAFunc(
-        /* term */ RichTerm,
-        /* arg */ RichTerm,
-        /* app position */ Option<RawSpan>,
-    ),
+    NotAFunc {
+        /// Applied term.
+        t: RichTerm,
+        /// Argument.
+        arg: RichTerm,
+        /// Position of the application.
+        pos: Option<RawSpan>,
+    },
     /// A field access, or another record operation requiring the existence of a specific field,
     /// has been performed on a record missing that field.
-    FieldMissing(
-        /* field identifier */ String,
-        /* operator */ String,
-        RichTerm,
-        Option<RawSpan>,
-    ),
+    FieldMissing {
+        /// Missing field.
+        field: String,
+        /// Operation (access, removal, etc.).
+        op: String,
+        /// Whole term.
+        t: RichTerm,
+        /// Position of the operation.
+        pos: Option<RawSpan>,
+    },
     /// Too few arguments were provided to a builtin function.
-    NotEnoughArgs(
-        /* required arg count */ usize,
-        /* primitive */ String,
-        Option<RawSpan>,
-    ),
+    NotEnoughArgs {
+        required: usize,
+        op: String,
+        pos: Option<RawSpan>,
+    },
     /// Attempted to merge incompatible values: for example, tried to merge two distinct default
     /// values into one record field.
-    MergeIncompatibleArgs(
-        /* left operand */ RichTerm,
-        /* right operand */ RichTerm,
-        /* original merge */ Option<RawSpan>,
-    ),
+    MergeIncompatibleArgs {
+        /// Left operand.
+        left: RichTerm,
+        /// Right operand.
+        right: RichTerm,
+        /// Position of the whole merge.
+        pos: Option<RawSpan>,
+    },
     /// An unbound identifier was referenced.
-    UnboundIdentifier(Ident, Option<RawSpan>),
+    UnboundIdentifier {
+        /// Unbound identifier.
+        ident: Ident,
+        /// Position of usage.
+        pos: Option<RawSpan>,
+    },
     /// An unexpected internal error.
-    InternalError(String, Option<RawSpan>),
+    InternalError {
+        /// Error message.
+        msg: String,
+        /// Position.
+        pos: Option<RawSpan>,
+    },
     /// Errors occurring rarely enough to not deserve a dedicated variant.
-    Other(String, Option<RawSpan>),
+    Other {
+        /// Error message.
+        msg: String,
+        /// Position.
+        pos: Option<RawSpan>,
+    },
 }
 
 /// An error occurring during the static typechecking phase.
@@ -664,34 +696,34 @@ impl ToDiagnostic<FileId> for EvalError {
         contract_id: Option<FileId>,
     ) -> Vec<Diagnostic<FileId>> {
         match self {
-            EvalError::BlameError(l, cs_opt) => {
+            EvalError::BlameError { label, call_stack } => {
                 let mut msg = String::from("Blame error: ");
 
                 // Writing in a string should not raise an error, whence the fearless `unwrap()`
-                if l.path.is_empty() {
+                if label.path.is_empty() {
                     // An empty path necessarily corresponds to a positive blame
-                    assert!(l.polarity);
+                    assert!(label.polarity);
                     write!(&mut msg, "contract broken by a value").unwrap();
                 } else {
-                    if l.polarity {
+                    if label.polarity {
                         write!(&mut msg, "contract broken by a function").unwrap();
                     } else {
                         write!(&mut msg, "contract broken by the caller").unwrap();
                     }
                 }
 
-                if !l.tag.is_empty() {
-                    write!(&mut msg, " [{}].", l.tag).unwrap();
+                if !label.tag.is_empty() {
+                    write!(&mut msg, " [{}].", label.tag).unwrap();
                 } else {
                     write!(&mut msg, ".").unwrap();
                 }
 
-                let (path_label, notes) = report_ty_path(&l, files);
+                let (path_label, notes) = report_ty_path(&label, files);
                 let labels = vec![
                     path_label,
                     Label::primary(
-                        l.span.src_id,
-                        l.span.start.to_usize()..l.span.end.to_usize(),
+                        label.span.src_id,
+                        label.span.start.to_usize()..label.span.end.to_usize(),
                     )
                     .with_message("bound here"),
                 ];
@@ -702,20 +734,19 @@ impl ToDiagnostic<FileId> for EvalError {
                     .with_notes(notes)];
 
                 match contract_id {
-                    Some(id) if !ty_path::is_only_codom(&l.path) => {
-                        let diags_opt =
-                            cs_opt
-                                .as_ref()
-                                .map(|cs| process_callstack(cs, id))
-                                .map(|calls| {
-                                    calls.into_iter().enumerate().map(|(i, (id_opt, pos))| {
-                                        let name = id_opt
-                                            .map(|Ident(id)| id.clone())
-                                            .unwrap_or(String::from("<func>"));
-                                        Diagnostic::note().with_labels(vec![secondary(&pos)
-                                            .with_message(format!("({}) calling {}", i + 1, name))])
-                                    })
-                                });
+                    Some(id) if !ty_path::is_only_codom(&label.path) => {
+                        let diags_opt = call_stack
+                            .as_ref()
+                            .map(|cs| process_callstack(cs, id))
+                            .map(|calls| {
+                                calls.into_iter().enumerate().map(|(i, (id_opt, pos))| {
+                                    let name = id_opt
+                                        .map(|Ident(id)| id.clone())
+                                        .unwrap_or(String::from("<func>"));
+                                    Diagnostic::note().with_labels(vec![secondary(&pos)
+                                        .with_message(format!("({}) calling {}", i + 1, name))])
+                                })
+                            });
 
                         if let Some(diags) = diags_opt {
                             diagnostics.extend(diags);
@@ -726,15 +757,20 @@ impl ToDiagnostic<FileId> for EvalError {
 
                 diagnostics
             }
-            EvalError::TypeError(expd, msg, orig_pos_opt, t) => {
+            EvalError::TypeError {
+                expd,
+                op,
+                t,
+                pos: pos_opt,
+            } => {
                 let label = format!(
                     "This expression has type {}, but {} was expected",
                     t.term.type_of().unwrap_or(String::from("<unevaluated>")),
                     expd,
                 );
 
-                let labels = match orig_pos_opt {
-                    Some(pos) if orig_pos_opt != &t.pos => vec![
+                let labels = match pos_opt {
+                    Some(pos) if pos_opt != &t.pos => vec![
                         primary(pos).with_message(label),
                         secondary_term(&t, files).with_message("evaluated to this"),
                     ],
@@ -744,9 +780,13 @@ impl ToDiagnostic<FileId> for EvalError {
                 vec![Diagnostic::error()
                     .with_message("Type error")
                     .with_labels(labels)
-                    .with_notes(vec![msg.clone()])]
+                    .with_notes(vec![op.clone()])]
             }
-            EvalError::NotAFunc(t, arg, pos_opt) => vec![Diagnostic::error()
+            EvalError::NotAFunc {
+                t,
+                arg,
+                pos: pos_opt,
+            } => vec![Diagnostic::error()
                 .with_message("Not a function")
                 .with_labels(vec![
                     primary_term(&t, files)
@@ -762,11 +802,16 @@ impl ToDiagnostic<FileId> for EvalError {
                     )
                     .with_message("applied here"),
                 ])],
-            EvalError::FieldMissing(field, op, t, span_opt) => {
+            EvalError::FieldMissing {
+                field,
+                op,
+                t,
+                pos: pos_opt,
+            } => {
                 let mut labels = Vec::new();
                 let mut notes = Vec::new();
 
-                if let Some(span) = span_opt {
+                if let Some(span) = pos_opt {
                     labels.push(
                         Label::primary(span.src_id, span.start.to_usize()..span.end.to_usize())
                             .with_message(format!("this requires field {} to exist", field)),
@@ -778,9 +823,9 @@ impl ToDiagnostic<FileId> for EvalError {
                     ));
                 }
 
-                if let Some(ref span) = t.pos {
+                if let Some(ref pos_t) = t.pos {
                     labels.push(
-                        secondary(span).with_message(format!("field {} is missing here", field)),
+                        secondary(pos_t).with_message(format!("field {} is missing here", field)),
                     );
                 }
 
@@ -788,17 +833,21 @@ impl ToDiagnostic<FileId> for EvalError {
                     .with_message("Missing field")
                     .with_labels(labels)]
             }
-            EvalError::NotEnoughArgs(count, op, span_opt) => {
+            EvalError::NotEnoughArgs {
+                required,
+                op,
+                pos: pos_opt,
+            } => {
                 let mut labels = Vec::new();
                 let mut notes = Vec::new();
                 let msg = format!(
                     "{} expects {} arguments, but not enough were provided",
-                    op, count
+                    op, required
                 );
 
-                if let Some(span) = span_opt {
+                if let Some(pos) = pos_opt {
                     labels.push(
-                        Label::primary(span.src_id, span.start.to_usize()..span.end.to_usize())
+                        Label::primary(pos.src_id, pos.start.to_usize()..pos.end.to_usize())
                             .with_message(msg),
                     );
                 } else {
@@ -810,34 +859,41 @@ impl ToDiagnostic<FileId> for EvalError {
                     .with_labels(labels)
                     .with_notes(notes)]
             }
-            EvalError::MergeIncompatibleArgs(t1, t2, span_opt) => {
+            EvalError::MergeIncompatibleArgs {
+                left,
+                right,
+                pos: pos_opt,
+            } => {
                 let mut labels = vec![
-                    primary_term(&t1, files).with_message("cannot merge this expression"),
-                    primary_term(&t2, files).with_message("with this expression"),
+                    primary_term(&left, files).with_message("cannot merge this expression"),
+                    primary_term(&right, files).with_message("with this expression"),
                 ];
 
-                if let Some(span) = span_opt {
-                    labels.push(secondary(&span).with_message("merged here"));
+                if let Some(pos) = pos_opt {
+                    labels.push(secondary(&pos).with_message("merged here"));
                 }
 
                 vec![Diagnostic::error()
                     .with_message("Non mergeable terms")
                     .with_labels(labels)]
             }
-            EvalError::UnboundIdentifier(Ident(ident), span_opt) => vec![Diagnostic::error()
+            EvalError::UnboundIdentifier {
+                ident,
+                pos: pos_opt,
+            } => vec![Diagnostic::error()
                 .with_message("Unbound identifier")
-                .with_labels(vec![primary_alt(span_opt, ident.clone(), files)
+                .with_labels(vec![primary_alt(pos_opt, format!("{}", ident), files)
                     .with_message("this identifier is unbound")])],
-            EvalError::Other(msg, span_opt) => {
-                let labels = span_opt
+            EvalError::Other { msg, pos: pos_opt } => {
+                let labels = pos_opt
                     .as_ref()
                     .map(|span| vec![primary(span).with_message("here")])
                     .unwrap_or(Vec::new());
 
                 vec![Diagnostic::error().with_message(msg).with_labels(labels)]
             }
-            EvalError::InternalError(msg, span_opt) => {
-                let labels = span_opt
+            EvalError::InternalError { msg, pos: pos_opt } => {
+                let labels = pos_opt
                     .as_ref()
                     .map(|span| vec![primary(span).with_message("here")])
                     .unwrap_or(Vec::new());
@@ -899,7 +955,7 @@ impl ToDiagnostic<FileId> for TypecheckError {
             TypecheckError::UnboundIdentifier(ident, pos_opt) =>
             // Use the same diagnostic as `EvalError::UnboundIdentifier` for consistency.
             {
-                EvalError::UnboundIdentifier(ident.clone(), pos_opt.clone())
+                EvalError::UnboundIdentifier { ident: ident.clone(), pos: pos_opt.clone() }
                     .to_diagnostic(files, contract_id)
             }
             TypecheckError::IllformedType(ty) => {

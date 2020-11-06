@@ -463,7 +463,10 @@ mod tests {
         let src = Cursor::new(s);
 
         let mut p = Program::new_from_source(src, "<test>").map_err(|io_err| {
-            Error::EvalError(EvalError::Other(format!("IO error: {}", io_err), None))
+            Error::EvalError(EvalError::Other {
+                msg: format!("IO error: {}", io_err),
+                pos: None,
+            })
         })?;
         p.eval()
     }
@@ -1148,7 +1151,7 @@ Assume(#alwaysTrue -> #alwaysFalse, not ) true
         );
 
         match eval_string(r#""bad type ${1 + 1}""#) {
-            Err(Error::EvalError(EvalError::TypeError(_, _, _, _))) => (),
+            Err(Error::EvalError(EvalError::TypeError { .. })) => (),
             _ => assert!(false),
         };
     }

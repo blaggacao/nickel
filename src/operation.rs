@@ -116,12 +116,12 @@ fn process_unary_operation(
                     panic!("An If-Then-Else wasn't saturated")
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Bool"),
-                    String::from("if"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Bool"),
+                    op: String::from("if"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::IsZero() => {
@@ -129,12 +129,12 @@ fn process_unary_operation(
                 // TODO Discuss and decide on this comparison for 0 on f64
                 Ok(Closure::atomic_closure(Term::Bool(n == 0.).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("isZero"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("isZero"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::IsNum() => {
@@ -190,15 +190,19 @@ fn process_unary_operation(
                     // only once primary operators have better support for laziness in some
                     // arguments.
                     b @ Term::Bool(false) => Ok(Closure::atomic_closure(b.into())),
-                    _ => Err(EvalError::TypeError(
-                        String::from("Bool"),
-                        String::from("&&"),
-                        arg_pos,
-                        RichTerm { term: t, pos },
-                    )),
+                    _ => Err(EvalError::TypeError {
+                        expd: String::from("Bool"),
+                        op: String::from("&&"),
+                        t: RichTerm { term: t, pos },
+                        pos: arg_pos,
+                    }),
                 }
             } else {
-                Err(EvalError::NotEnoughArgs(2, String::from("&&"), pos_op))
+                Err(EvalError::NotEnoughArgs {
+                    required: 2,
+                    op: String::from("&&"),
+                    pos: pos_op,
+                })
             }
         }
         UnaryOp::BoolOr() => {
@@ -211,51 +215,58 @@ fn process_unary_operation(
                     // only once primary operators have better support for laziness in some
                     // arguments.
                     Term::Bool(false) => Ok(next),
-                    _ => Err(EvalError::TypeError(
-                        String::from("Bool"),
-                        String::from("||"),
-                        arg_pos,
-                        RichTerm { term: t, pos },
-                    )),
+                    _ => Err(EvalError::TypeError {
+                        expd: String::from("Bool"),
+                        op: String::from("||"),
+                        t: RichTerm { term: t, pos },
+                        pos: arg_pos,
+                    }),
                 }
             } else {
-                Err(EvalError::NotEnoughArgs(2, String::from("||"), pos_op))
+                Err(EvalError::NotEnoughArgs {
+                    required: 2,
+                    op: String::from("||"),
+                    pos: pos_op,
+                })
             }
         }
         UnaryOp::BoolNot() => {
             if let Term::Bool(b) = *t {
                 Ok(Closure::atomic_closure(Term::Bool(!b).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Bool"),
-                    String::from("!"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Bool"),
+                    op: String::from("!"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Blame() => {
-            if let Term::Lbl(l) = *t {
-                Err(EvalError::BlameError(l, None))
+            if let Term::Lbl(label) = *t {
+                Err(EvalError::BlameError {
+                    label,
+                    call_stack: None,
+                })
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("blame"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("blame"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Embed(_id) => {
             if let en @ Term::Enum(_) = *t {
                 Ok(Closure::atomic_closure(en.into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Enum"),
-                    String::from("embed"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Enum"),
+                    op: String::from("embed"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Switch(mut m, d) => {
@@ -264,26 +275,26 @@ fn process_unary_operation(
                     Some(clos) => Ok(clos),
                     None => match d {
                         Some(clos) => Ok(clos),
-                        None => Err(EvalError::TypeError(
-                            String::from("Enum"),
-                            String::from("switch"),
-                            arg_pos,
-                            RichTerm {
+                        None => Err(EvalError::TypeError {
+                            expd: String::from("Enum"),
+                            op: String::from("switch"),
+                            t: RichTerm {
                                 term: Box::new(Term::Enum(en)),
                                 pos,
                             },
-                        )),
+                            pos: arg_pos,
+                        }),
                     },
                 }
             } else {
                 match d {
                     Some(clos) => Ok(clos),
-                    None => Err(EvalError::TypeError(
-                        String::from("Enum"),
-                        String::from("switch"),
-                        arg_pos,
-                        RichTerm { term: t, pos },
-                    )),
+                    None => Err(EvalError::TypeError {
+                        expd: String::from("Enum"),
+                        op: String::from("switch"),
+                        t: RichTerm { term: t, pos },
+                        pos: arg_pos,
+                    }),
                 }
             }
         }
@@ -292,24 +303,24 @@ fn process_unary_operation(
                 l.polarity = !l.polarity;
                 Ok(Closure::atomic_closure(Term::Lbl(l).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("changePolarity"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("changePolarity"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Pol() => {
             if let Term::Lbl(l) = *t {
                 Ok(Closure::atomic_closure(Term::Bool(l.polarity).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("polarity"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("polarity"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::GoDom() => {
@@ -317,12 +328,12 @@ fn process_unary_operation(
                 l.path.push(ty_path::Elem::Domain);
                 Ok(Closure::atomic_closure(Term::Lbl(l).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("goDom"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("goDom"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::GoCodom() => {
@@ -330,12 +341,12 @@ fn process_unary_operation(
                 l.path.push(ty_path::Elem::Codomain);
                 Ok(Closure::atomic_closure(Term::Lbl(l).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("goCodom"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("goCodom"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Tag(s) => {
@@ -343,12 +354,12 @@ fn process_unary_operation(
                 l.tag = String::from(&s);
                 Ok(Closure::atomic_closure(Term::Lbl(l).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Label"),
-                    String::from("tag"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Label"),
+                    op: String::from("tag"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Wrap() => {
@@ -358,12 +369,12 @@ fn process_unary_operation(
                     Term::Wrapped(s, mk_term::var("x"))
                 )))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Sym"),
-                    String::from("wrap"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Sym"),
+                    op: String::from("wrap"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::StaticAccess(id) => {
@@ -371,23 +382,23 @@ fn process_unary_operation(
                 match static_map.remove(&id) {
                     Some(e) => Ok(Closure { body: e, env }),
 
-                    None => Err(EvalError::FieldMissing(
-                        id.0,
-                        String::from("(.)"),
-                        RichTerm {
+                    None => Err(EvalError::FieldMissing {
+                        field: format!("{}", id),
+                        op: String::from("(.)"),
+                        t: RichTerm {
                             term: Box::new(Term::Record(static_map)),
                             pos,
                         },
-                        pos_op,
-                    )), //TODO include the position of operators on the stack
+                        pos: pos_op,
+                    }), //TODO include the position of operators on the stack
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Record"),
-                    String::from("field access"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Record"),
+                    op: String::from("field access"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::FieldsOf() => {
@@ -397,12 +408,12 @@ fn process_unary_operation(
                 let terms = fields.into_iter().map(mk_term::string).collect();
                 Ok(Closure::atomic_closure(Term::List(terms).into()))
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Record"),
-                    String::from("fieldsOf"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Record"),
+                    op: String::from("fieldsOf"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::MapRec(f) => {
@@ -425,12 +436,12 @@ fn process_unary_operation(
                     env,
                 })
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Record"),
-                    String::from("map on record"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("Record"),
+                    op: String::from("map on record"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::Seq() => {
@@ -438,7 +449,11 @@ fn process_unary_operation(
                 let (next, _) = stack.pop_arg().expect("Condition already checked.");
                 Ok(next)
             } else {
-                Err(EvalError::NotEnoughArgs(2, String::from("seq"), pos_op))
+                Err(EvalError::NotEnoughArgs {
+                    required: 2,
+                    op: String::from("seq"),
+                    pos: pos_op,
+                })
             }
         }
         UnaryOp::DeepSeq() => {
@@ -471,7 +486,11 @@ fn process_unary_operation(
                         let (next, _) = stack.pop_arg().expect("Condition already checked.");
                         Ok(next)
                     } else {
-                        Err(EvalError::NotEnoughArgs(2, String::from("deepSeq"), pos_op))
+                        Err(EvalError::NotEnoughArgs {
+                            required: 2,
+                            op: String::from("deepSeq"),
+                            pos: pos_op,
+                        })
                     }
                 }
             }
@@ -482,15 +501,18 @@ fn process_unary_operation(
                 if let Some(head) = ts_it.next() {
                     Ok(Closure { body: head, env })
                 } else {
-                    Err(EvalError::Other(String::from("head: empty list"), pos_op))
+                    Err(EvalError::Other {
+                        msg: String::from("head: empty list"),
+                        pos: pos_op,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("List"),
-                    String::from("head"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("List"),
+                    op: String::from("head"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::ListTail() => {
@@ -502,15 +524,18 @@ fn process_unary_operation(
                         env,
                     })
                 } else {
-                    Err(EvalError::Other(String::from("tail: empty list"), pos_op))
+                    Err(EvalError::Other {
+                        msg: String::from("tail: empty list"),
+                        pos: pos_op,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("List"),
-                    String::from("tail"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("List"),
+                    op: String::from("tail"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::ListLength() => {
@@ -521,12 +546,12 @@ fn process_unary_operation(
                     env: HashMap::new(),
                 })
             } else {
-                Err(EvalError::TypeError(
-                    String::from("List"),
-                    String::from("length"),
-                    arg_pos,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("List"),
+                    op: String::from("length"),
+                    t: RichTerm { term: t, pos },
+                    pos: arg_pos,
+                })
             }
         }
         UnaryOp::ChunksConcat(mut acc, mut tail) => {
@@ -570,12 +595,12 @@ fn process_unary_operation(
                     })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("String"),
-                    String::from("interpolated string"),
-                    pos_op,
-                    RichTerm { term: t, pos },
-                ))
+                Err(EvalError::TypeError {
+                    expd: String::from("String"),
+                    op: String::from("interpolated string"),
+                    t: RichTerm { term: t, pos },
+                    pos: pos_op,
+                })
             }
         }
     }
@@ -615,26 +640,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Num(n1 + n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("+, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("+, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("+, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("+, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Sub() => {
@@ -642,26 +667,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Num(n1 - n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("-, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("-, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("-, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("-, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Mult() => {
@@ -669,57 +694,60 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Num(n1 * n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("*, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("*, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("*, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("*, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Div() => {
             if let Term::Num(n1) = *t1 {
                 if let Term::Num(n2) = *t2 {
                     if n2 == 0.0 {
-                        Err(EvalError::Other(String::from("division by zero"), pos_op))
+                        Err(EvalError::Other {
+                            msg: String::from("division by zero"),
+                            pos: pos_op,
+                        })
                     } else {
                         Ok(Closure::atomic_closure(Term::Num(n1 / n2).into()))
                     }
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("/, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("/, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("/, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("/, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Modulo() => {
@@ -727,26 +755,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Num(n1 % n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("%, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("%, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("%, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("%, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::PlusStr() => {
@@ -754,26 +782,26 @@ fn process_binary_operation(
                 if let Term::Str(s2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Str(s1 + &s2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Str"),
-                        String::from("++, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Str"),
+                        op: String::from("++, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from("++, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from("++, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Unwrap() => {
@@ -794,15 +822,15 @@ fn process_binary_operation(
                     Closure::atomic_closure(mk_term::id())
                 })
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Sym"),
-                    String::from("unwrap, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Sym"),
+                    op: String::from("unwrap, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::Eq() => {
@@ -870,26 +898,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Bool(n1 < n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("<, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("<, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("<, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("<, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::LessOrEq() => {
@@ -897,26 +925,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Bool(n1 <= n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from("<, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from("<, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from("<, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from("<, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::GreaterThan() => {
@@ -924,26 +952,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Bool(n1 > n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from(">, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from(">, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from(">, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from(">, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::GreaterOrEq() => {
@@ -951,26 +979,26 @@ fn process_binary_operation(
                 if let Term::Num(n2) = *t2 {
                     Ok(Closure::atomic_closure(Term::Bool(n1 >= n2).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Num"),
-                        String::from(">=, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Num"),
+                        op: String::from(">=, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Num"),
-                    String::from(">=, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Num"),
+                    op: String::from(">=, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::GoField() => {
@@ -979,26 +1007,26 @@ fn process_binary_operation(
                     l.path.push(ty_path::Elem::Field(Ident(field)));
                     Ok(Closure::atomic_closure(Term::Lbl(l).into()))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Label"),
-                        String::from("goField, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Label"),
+                        op: String::from("goField, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from("goField, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from("goField, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::DynAccess() => {
@@ -1006,37 +1034,37 @@ fn process_binary_operation(
                 if let Term::Record(mut static_map) = *t2 {
                     match static_map.remove(&Ident(id.clone())) {
                         Some(e) => Ok(Closure { body: e, env: env2 }),
-                        None => Err(EvalError::FieldMissing(
-                            format!("{}", id),
-                            String::from("(.$)"),
-                            RichTerm {
+                        None => Err(EvalError::FieldMissing {
+                            field: id,
+                            op: String::from("(.$)"),
+                            t: RichTerm {
                                 term: Box::new(Term::Record(static_map)),
                                 pos: pos2,
                             },
-                            pos_op,
-                        )),
+                            pos: pos_op,
+                        }),
                     }
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Record"),
-                        String::from(".$"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Record"),
+                        op: String::from(".$"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from(".$"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from(".$"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::DynExtend(clos) => {
@@ -1044,74 +1072,74 @@ fn process_binary_operation(
                 if let Term::Record(mut static_map) = *t2 {
                     let as_var = clos.body.closurize(&mut env2, clos.env);
                     match static_map.insert(Ident(id.clone()), as_var) {
-                        Some(_) => Err(EvalError::Other(format!("$[ .. ]: tried to extend record with the field {}, but it already exists", id), pos_op)),
+                        Some(_) => Err(EvalError::Other { msg: format!("$[ .. ]: tried to extend record with the field {}, but it already exists", id), pos: pos_op }),
                         None => Ok(Closure {
                             body: Term::Record(static_map).into(),
                             env: env2,
                         }),
                     }
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Record"),
-                        String::from("$[ .. ]"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Record"),
+                        op: String::from("$[ .. ]"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from("$[ .. ]"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from("$[ .. ]"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::DynRemove() => {
             if let Term::Str(id) = *t1 {
                 if let Term::Record(mut static_map) = *t2 {
                     match static_map.remove(&Ident(id.clone())) {
-                        None => Err(EvalError::FieldMissing(
-                            format!("{}", id),
-                            String::from("(-$)"),
-                            RichTerm {
+                        None => Err(EvalError::FieldMissing {
+                            field: id,
+                            op: String::from("(-$)"),
+                            t: RichTerm {
                                 term: Box::new(Term::Record(static_map)),
                                 pos: pos2,
                             },
-                            pos_op,
-                        )),
+                            pos: pos_op,
+                        }),
                         Some(_) => Ok(Closure {
                             body: Term::Record(static_map).into(),
                             env: env2,
                         }),
                     }
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Record"),
-                        String::from("-$"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Record"),
+                        op: String::from("-$"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from("-$"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from("-$"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::HasField() => {
@@ -1121,26 +1149,26 @@ fn process_binary_operation(
                         Term::Bool(static_map.contains_key(&Ident(id))).into(),
                     ))
                 } else {
-                    Err(EvalError::TypeError(
-                        String::from("Record"),
-                        String::from("hasField, 2nd argument"),
-                        snd_pos,
-                        RichTerm {
+                    Err(EvalError::TypeError {
+                        expd: String::from("Record"),
+                        op: String::from("hasField, 2nd argument"),
+                        t: RichTerm {
                             term: t2,
                             pos: pos2,
                         },
-                    ))
+                        pos: snd_pos,
+                    })
                 }
             } else {
-                Err(EvalError::TypeError(
-                    String::from("Str"),
-                    String::from("hasField, 1st argument"),
-                    fst_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("Str"),
+                    op: String::from("hasField, 1st argument"),
+                    t: RichTerm {
                         term: t1,
                         pos: pos1,
                     },
-                ))
+                    pos: fst_pos,
+                })
             }
         }
         BinaryOp::ListConcat() => match (*t1, *t2) {
@@ -1157,24 +1185,24 @@ fn process_binary_operation(
                     env,
                 })
             }
-            (Term::List(_), t2) => Err(EvalError::TypeError(
-                String::from("List"),
-                String::from("@, 2nd operand"),
-                snd_pos,
-                RichTerm {
+            (Term::List(_), t2) => Err(EvalError::TypeError {
+                expd: String::from("List"),
+                op: String::from("@, 2nd operand"),
+                t: RichTerm {
                     term: Box::new(t2),
                     pos: pos2,
                 },
-            )),
-            (t1, _) => Err(EvalError::TypeError(
-                String::from("List"),
-                String::from("@, 1st operand"),
-                fst_pos,
-                RichTerm {
+                pos: snd_pos,
+            }),
+            (t1, _) => Err(EvalError::TypeError {
+                expd: String::from("List"),
+                op: String::from("@, 1st operand"),
+                t: RichTerm {
                     term: Box::new(t1),
                     pos: pos1,
                 },
-            )),
+                pos: fst_pos,
+            }),
         },
         // This one should not be strict in the first argument (f)
         BinaryOp::ListMap() => {
@@ -1195,24 +1223,24 @@ fn process_binary_operation(
                     env: env2,
                 })
             } else {
-                Err(EvalError::TypeError(
-                    String::from("List"),
-                    String::from("map, 2nd argument"),
-                    snd_pos,
-                    RichTerm {
+                Err(EvalError::TypeError {
+                    expd: String::from("List"),
+                    op: String::from("map, 2nd argument"),
+                    t: RichTerm {
                         term: t2,
                         pos: pos2,
                     },
-                ))
+                    pos: snd_pos,
+                })
             }
         }
         BinaryOp::ListElemAt() => match (*t1, *t2) {
             (Term::List(mut ts), Term::Num(n)) => {
                 let n_int = n as usize;
                 if n.fract() != 0.0 {
-                    Err(EvalError::Other(format!("elemAt: expected the 2nd agument to be an integer, got the floating-point value {}", n), pos_op))
+                    Err(EvalError::Other { msg: format!("elemAt: expected the 2nd agument to be an integer, got the floating-point value {}", n), pos: pos_op })
                 } else if n < 0.0 || n_int >= ts.len() {
-                    Err(EvalError::Other(format!("elemAt: index out of bounds. Expected a value between 0 and {}, got {}", ts.len(), n), pos_op))
+                    Err(EvalError::Other { msg: format!("elemAt: index out of bounds. Expected a value between 0 and {}, got {}", ts.len(), n), pos: pos_op })
                 } else {
                     Ok(Closure {
                         body: ts.swap_remove(n_int),
@@ -1220,24 +1248,24 @@ fn process_binary_operation(
                     })
                 }
             }
-            (Term::List(_), t2) => Err(EvalError::TypeError(
-                String::from("Num"),
-                String::from("elemAt, 2nd argument"),
-                snd_pos,
-                RichTerm {
+            (Term::List(_), t2) => Err(EvalError::TypeError {
+                expd: String::from("Num"),
+                op: String::from("elemAt, 2nd argument"),
+                t: RichTerm {
                     term: Box::new(t2),
                     pos: pos2,
                 },
-            )),
-            (t1, _) => Err(EvalError::TypeError(
-                String::from("List"),
-                String::from("elemAt, 1st argument"),
-                fst_pos,
-                RichTerm {
+                pos: snd_pos,
+            }),
+            (t1, _) => Err(EvalError::TypeError {
+                expd: String::from("List"),
+                op: String::from("elemAt, 1st argument"),
+                t: RichTerm {
                     term: Box::new(t1),
                     pos: pos1,
                 },
-            )),
+                pos: fst_pos,
+            }),
         },
         BinaryOp::Merge() => merge(
             RichTerm {

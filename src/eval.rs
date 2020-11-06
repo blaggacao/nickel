@@ -188,7 +188,10 @@ where
                             .get(&x)
                             .map(|(rc, id_kind)| (rc.clone(), id_kind.clone()))
                     })
-                    .ok_or(EvalError::UnboundIdentifier(x.clone(), pos.clone()))?;
+                    .ok_or(EvalError::UnboundIdentifier {
+                        ident: x.clone(),
+                        pos: pos.clone(),
+                    })?;
                 std::mem::drop(env); // thunk may be a 1RC pointer
                 if should_update(&thunk.borrow().body.term) {
                     stack.push_thunk(Rc::downgrade(&thunk));
@@ -299,9 +302,11 @@ where
                     ts.iter()
                         .try_fold(HashMap::new(), |mut rec_env, (id, rt)| match rt.as_ref() {
                             &Term::Var(ref var_id) => {
-                                let (thunk, id_kind) = env.get(var_id).ok_or(
-                                    EvalError::UnboundIdentifier(var_id.clone(), rt.pos.clone()),
-                                )?;
+                                let (thunk, id_kind) =
+                                    env.get(var_id).ok_or(EvalError::UnboundIdentifier {
+                                        ident: var_id.clone(),
+                                        pos: rt.pos.clone(),
+                                    })?;
                                 rec_env.insert(id.clone(), (thunk.clone(), id_kind.clone()));
                                 Ok(rec_env)
                             }
@@ -350,12 +355,12 @@ where
             }
             // Unwrapping of enriched terms
             Term::Contract(_, _) if enriched_strict => {
-                return Err(EvalError::Other(
-                    String::from(
+                return Err(EvalError::Other {
+                    msg: String::from(
                         "Expected a simple term, got a Contract. Contracts cannot be evaluated",
                     ),
                     pos,
-                ));
+                });
             }
             enriched @ Term::DefaultValue(_) | enriched @ Term::Docstring(_, _)
                 if enriched_strict =>
@@ -398,17 +403,17 @@ where
                 if let Some(t) = resolver.get(id) {
                     Closure::atomic_closure(t)
                 } else {
-                    return Err(EvalError::InternalError(
-                        format!("Resolved import not found ({:?})", id),
+                    return Err(EvalError::InternalError {
+                        msg: format!("Resolved import not found ({:?})", id),
                         pos,
-                    ));
+                    });
                 }
             }
             Term::Import(path) => {
-                return Err(EvalError::InternalError(
-                    format!("Unresolved import ({})", path),
+                return Err(EvalError::InternalError {
+                    msg: format!("Unresolved import ({})", path),
                     pos,
-                ))
+                })
             }
             // Continuation of operations and thunk update
             _ if stack.is_top_thunk() || stack.is_top_cont() => {
@@ -430,8 +435,11 @@ where
                         &mut enriched_strict,
                     );
 
-                    if let Err(EvalError::BlameError(l, _)) = cont_result {
-                        return Err(EvalError::BlameError(l, Some(call_stack)));
+                    if let Err(EvalError::BlameError { label, .. }) = cont_result {
+                        return Err(EvalError::BlameError {
+                            label,
+                            call_stack: Some(call_stack),
+                        });
                     }
                     cont_result?
                 }
@@ -452,14 +460,14 @@ where
             t => {
                 if 0 < stack.count_args() {
                     let (arg, pos_app) = stack.pop_arg().expect("Condition already checked.");
-                    return Err(EvalError::NotAFunc(
-                        RichTerm {
+                    return Err(EvalError::NotAFunc {
+                        t: RichTerm {
                             term: Box::new(t),
                             pos,
                         },
-                        arg.body,
-                        pos_app,
-                    ));
+                        arg: arg.body,
+                        pos: pos_app,
+                    });
                 } else {
                     return Ok(t);
                 }
@@ -508,11 +516,11 @@ mod tests {
 
     #[test]
     fn blame_panics() {
-        let label = Label::dummy();
-        if let Err(EvalError::BlameError(l, _)) =
-            eval_no_import(mk_term::op1(UnaryOp::Blame(), Term::Lbl(label.clone())))
+        let dummy = Label::dummy();
+        if let Err(EvalError::BlameError { label, .. }) =
+            eval_no_import(mk_term::op1(UnaryOp::Blame(), Term::Lbl(dummy.clone())))
         {
-            assert_eq!(l, label);
+            assert_eq!(label, dummy);
         } else {
             panic!("This evaluation should've returned a BlameError!");
         }
